@@ -12,7 +12,6 @@
       --sub-text: #656d76;
       --border: #e8eaf0;
       
-      /* 清爽透明感热力配色 */
       --pos-1: #d2edd4; 
       --pos-2: #7ce38b; 
       --pos-3: #38a84d;
@@ -80,11 +79,11 @@
 
     /* AI 动态输入区 */
     .input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-    input[type="text"], textarea {
+    input[type="text"], input[type="date"], textarea {
       width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px;
-      font-size: 14px; outline: none; font-family: inherit;
+      font-size: 14px; outline: none; font-family: inherit; background: #fff;
     }
-    input[type="text"]:focus, textarea:focus { border-color: #38a84d; }
+    input[type="text"]:focus, input[type="date"]:focus, textarea:focus { border-color: #38a84d; }
     button.primary-btn {
       background: #1f2328; color: #fff; border: none; padding: 11px;
       border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500;
@@ -100,7 +99,10 @@
     .config-panel label { display: block; font-size: 12px; color: var(--sub-text); margin-bottom: 4px; margin-top: 8px; }
     .text-sm { font-size: 12px; color: var(--sub-text); cursor: pointer; }
 
-    /* 今日记录流水 */
+    /* 当天/选定日期打卡流水 */
+    .date-selector-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    }
     .record-item {
       display: flex; justify-content: space-between; align-items: center;
       padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px;
@@ -132,7 +134,7 @@
 
   <!-- 2. 常驻习惯快捷打卡 -->
   <div class="card">
-    <h2>高频打卡</h2>
+    <h2>高频打卡 (记入下方选定日期)</h2>
     <div class="presets" id="presets-container"></div>
   </div>
 
@@ -162,22 +164,22 @@
     </div>
   </div>
 
-  <!-- 4. 当天打卡明细 -->
+  <!-- 4. 打卡明细 (支持日期切换/补卡) -->
   <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h2 id="today-title">今天记录</h2>
+    <div class="date-selector-row">
+      <input type="date" id="record-date" style="width: 140px; padding: 6px 10px; font-weight: 600;" onchange="onDateChange()">
       <span id="today-score" style="font-weight: 600; font-size: 14px;"></span>
     </div>
     <div id="records-list"></div>
   </div>
 
   <script>
-const DEFAULT_PRESETS = [
+    const DEFAULT_PRESETS = [
       // +3分：核心强健与高能量运动
       { name: "Body Combat", score: 3 },
-      { name: "练引体向上", score: 1 },
+      { name: "练引体向上", score: 3 },
       // +2分：中度活动与核心作息
-      { name: "俯卧撑", score: 1 },
+      { name: "俯卧撑", score: 2 },
       { name: "Switch体感游戏", score: 2 },
       { name: "1点前睡觉", score: 2 },
       // +1分：生活管理与身心习惯
@@ -188,10 +190,9 @@ const DEFAULT_PRESETS = [
       // -1 ~ -2分：失控与红线行为
       { name: "睡在沙发上", score: -1 },
       { name: "晚睡(超过1点)", score: -2 },
-      { name: "喝太多酒", score: -3 },
-      { name: "吃夜宵", score: -3 }
+      { name: "喝太多酒", score: -2 },
+      { name: "吃夜宵", score: -2 }
     ];
-
 
     const DEFAULT_BASELINE = `
 判断规则与权重参考：
@@ -202,9 +203,16 @@ const DEFAULT_PRESETS = [
 5. 【-2分】：红线行为（晚睡超过1:00、喝太多酒、吃夜宵等）；
 6. 如果输入的行为不在上述范围内，请按照“正向+1~+3，负向-1~-3，普通/中性0分”的逻辑独立打分。`;
 
+    // 获取格式化为 YYYY-MM-DD 的当天字符串
     function getTodayStr() {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    // 获取当前日历组件所选择的日期
+    function getSelectedDateStr() {
+      const dateInput = document.getElementById("record-date");
+      return dateInput.value || getTodayStr();
     }
 
     let recordsData = JSON.parse(localStorage.getItem("habit_records")) || {};
@@ -213,10 +221,19 @@ const DEFAULT_PRESETS = [
       baseline: DEFAULT_BASELINE
     };
 
-    function renderApp() {
+    function initApp() {
+      // 默认选中今天
+      const dateInput = document.getElementById("record-date");
+      if (!dateInput.value) {
+        dateInput.value = getTodayStr();
+      }
       renderPresets();
       renderMonthCalendar();
-      renderTodayRecords();
+      renderRecordsForSelectedDate();
+    }
+
+    function onDateChange() {
+      renderRecordsForSelectedDate();
     }
 
     function renderPresets() {
@@ -240,7 +257,6 @@ const DEFAULT_PRESETS = [
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth();
-      const todayDate = now.getDate();
 
       document.getElementById("month-title").innerText = `${month + 1}月`;
 
@@ -258,7 +274,6 @@ const DEFAULT_PRESETS = [
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const cell = document.createElement("div");
         cell.className = "cell";
-        // 去掉了方块文字数字和黑框
 
         const dayData = recordsData[dateStr];
         const score = dayData ? dayData.total_score : 0;
@@ -284,24 +299,25 @@ const DEFAULT_PRESETS = [
       return "";
     }
 
-    function renderTodayRecords() {
-      const today = getTodayStr();
-      const todayData = recordsData[today] || { total_score: 0, records: [] };
+    // 渲染选定日期的流水
+    function renderRecordsForSelectedDate() {
+      const targetDate = getSelectedDateStr();
+      const dayData = recordsData[targetDate] || { total_score: 0, records: [] };
       
       const scoreEl = document.getElementById("today-score");
-      const sign = todayData.total_score > 0 ? "+" : "";
-      scoreEl.innerText = `净分 ${sign}${todayData.total_score}`;
-      scoreEl.style.color = todayData.total_score >= 0 ? "#38a84d" : "#e05252";
+      const sign = dayData.total_score > 0 ? "+" : "";
+      scoreEl.innerText = `净分 ${sign}${dayData.total_score}`;
+      scoreEl.style.color = dayData.total_score >= 0 ? "#38a84d" : "#e05252";
 
       const list = document.getElementById("records-list");
       list.innerHTML = "";
       
-      if (todayData.records.length === 0) {
-        list.innerHTML = `<div style="padding: 10px 0; color: var(--sub-text); font-size: 13px;">今天还未打卡</div>`;
+      if (dayData.records.length === 0) {
+        list.innerHTML = `<div style="padding: 10px 0; color: var(--sub-text); font-size: 13px;">这一天没有打卡记录</div>`;
         return;
       }
 
-      todayData.records.forEach((item, index) => {
+      dayData.records.forEach((item, index) => {
         const row = document.createElement("div");
         row.className = "record-item";
         const sign = item.score > 0 ? "+" : "";
@@ -314,26 +330,28 @@ const DEFAULT_PRESETS = [
     }
 
     function addRecord(name, score, type) {
-      const today = getTodayStr();
-      if (!recordsData[today]) {
-        recordsData[today] = { total_score: 0, records: [] };
+      const targetDate = getSelectedDateStr();
+      if (!recordsData[targetDate]) {
+        recordsData[targetDate] = { total_score: 0, records: [] };
       }
-      recordsData[today].records.push({ name, score: Number(score), type });
-      recordsData[today].total_score += Number(score);
+      recordsData[targetDate].records.push({ name, score: Number(score), type });
+      recordsData[targetDate].total_score += Number(score);
       
       localStorage.setItem("habit_records", JSON.stringify(recordsData));
-      renderApp();
+      renderMonthCalendar();
+      renderRecordsForSelectedDate();
     }
 
     function deleteRecord(index) {
-      const today = getTodayStr();
-      if (!recordsData[today]) return;
+      const targetDate = getSelectedDateStr();
+      if (!recordsData[targetDate]) return;
       
-      const removed = recordsData[today].records.splice(index, 1)[0];
-      recordsData[today].total_score -= Number(removed.score);
+      const removed = recordsData[targetDate].records.splice(index, 1)[0];
+      recordsData[targetDate].total_score -= Number(removed.score);
       
       localStorage.setItem("habit_records", JSON.stringify(recordsData));
-      renderApp();
+      renderMonthCalendar();
+      renderRecordsForSelectedDate();
     }
 
     async function submitToAI() {
@@ -408,7 +426,7 @@ const DEFAULT_PRESETS = [
       toggleConfig();
     }
 
-    renderApp();
+    initApp();
   </script>
 </body>
 </html>
