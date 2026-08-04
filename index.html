@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>习惯热力打卡</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --card-bg: #ffffff;
+      --text: #1f2328;
+      --sub-text: #656d76;
+      --border: #e8eaf0;
+      
+      /* 清爽透明感热力配色 */
+      --pos-1: #d2edd4; 
+      --pos-2: #7ce38b; 
+      --pos-3: #38a84d;
+      
+      --neg-1: #ffebe9; 
+      --neg-2: #ff9b94; 
+      --neg-3: #e05252;
+      
+      --neutral: #ebedf0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); padding: 16px 14px 40px;
+      max-width: 480px; margin: 0 auto;
+    }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+    .card {
+      background: var(--card-bg); border-radius: 12px; padding: 16px;
+      margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); border: 1px solid var(--border);
+    }
+    
+    /* 极简热力图样式 */
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .week-headers {
+      display: grid; grid-template-columns: repeat(7, 22px); gap: 6px;
+      font-size: 11px; color: var(--sub-text); margin-bottom: 6px; text-align: center;
+    }
+    .month-grid {
+      display: grid; grid-template-columns: repeat(7, 22px); gap: 6px;
+    }
+    .cell {
+      width: 22px; height: 22px; border-radius: 4px; background: var(--neutral);
+      transition: transform 0.1s;
+    }
+    .cell.empty { background: transparent; }
+    
+    .cell[data-score="pos1"] { background: var(--pos-1); }
+    .cell[data-score="pos2"] { background: var(--pos-2); }
+    .cell[data-score="pos3"] { background: var(--pos-3); }
+    .cell[data-score="neg1"] { background: var(--neg-1); }
+    .cell[data-score="neg2"] { background: var(--neg-2); }
+    .cell[data-score="neg3"] { background: var(--neg-3); }
+    
+    .legend {
+      margin-top: 12px; font-size: 11px; color: var(--sub-text);
+      display: flex; justify-content: space-between; align-items: center;
+      max-width: 190px;
+    }
+
+    /* 预设打卡按钮 */
+    .presets { display: flex; flex-direction: column; gap: 8px; }
+    .preset-btn {
+      border: 1px solid var(--border); background: #fff; padding: 11px 14px;
+      border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.1s;
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; text-align: left;
+    }
+    .preset-btn:active { background: #f2f3f5; transform: scale(0.99); }
+    .score-badge {
+      font-weight: 600; border-radius: 4px; padding: 2px 6px; font-size: 12px;
+    }
+    .badge-pos { background: var(--pos-1); color: #1a5e28; }
+    .badge-neg { background: var(--neg-1); color: #8e180d; }
+
+    /* AI 动态输入区 */
+    .input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    input[type="text"], textarea {
+      width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; outline: none; font-family: inherit;
+    }
+    input[type="text"]:focus, textarea:focus { border-color: #38a84d; }
+    button.primary-btn {
+      background: #1f2328; color: #fff; border: none; padding: 11px;
+      border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500;
+      width: 100%;
+    }
+    button.primary-btn:active { background: #3c4043; }
+    button.primary-btn:disabled { background: #9aa0a6; }
+    
+    .config-panel {
+      margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px;
+      display: none;
+    }
+    .config-panel label { display: block; font-size: 12px; color: var(--sub-text); margin-bottom: 4px; margin-top: 8px; }
+    .text-sm { font-size: 12px; color: var(--sub-text); cursor: pointer; }
+
+    /* 今日记录流水 */
+    .record-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+    }
+    .record-item:last-child { border-bottom: none; }
+    .delete-btn { color: #e05252; background: none; border: none; font-size: 13px; padding: 4px 8px; }
+  </style>
+</head>
+<body>
+
+  <!-- 1. 极简月度热力图 -->
+  <div class="card">
+    <div class="calendar-header">
+      <h2 id="month-title">8月</h2>
+      <span id="summary-text" style="font-size: 12px; color: var(--sub-text);"></span>
+    </div>
+    <div class="week-headers">
+      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+    </div>
+    <div class="month-grid" id="heatmap"></div>
+    <div class="legend">
+      <span>失控</span>
+      <span>·</span>
+      <span>留空</span>
+      <span>·</span>
+      <span>良好</span>
+    </div>
+  </div>
+
+  <!-- 2. 常驻习惯快捷打卡 -->
+  <div class="card">
+    <h2>高频打卡</h2>
+    <div class="presets" id="presets-container"></div>
+  </div>
+
+  <!-- 3. AI 智能输入打卡 -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <h2>临时事项</h2>
+      <span class="text-sm" onclick="toggleConfig()">[AI 设置]</span>
+    </div>
+    
+    <div class="input-group">
+      <input type="text" id="ai-input" placeholder="输入突发习惯，如：晚上1:15睡觉 / 喝茶">
+      <button class="primary-btn" id="ai-btn" onclick="submitToAI()">让 AI 智能算分并打卡</button>
+    </div>
+
+    <!-- AI配置 -->
+    <div class="config-panel" id="config-panel">
+      <label>智谱 GLM API Key (不填可直接用模拟体验):</label>
+      <input type="text" id="api-key-input" placeholder="输入 Key，格式 xx.xx">
+      
+      <label>你的私人基准设定:</label>
+      <textarea id="baseline-input" rows="3"></textarea>
+      
+      <div style="margin-top: 10px;">
+        <button class="primary-btn" onclick="saveConfig()">保存 AI 配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 当天打卡明细 -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h2 id="today-title">今天记录</h2>
+      <span id="today-score" style="font-weight: 600; font-size: 14px;"></span>
+    </div>
+    <div id="records-list"></div>
+  </div>
+
+  <script>
+const DEFAULT_PRESETS = [
+      // +3分：核心强健与高能量运动
+      { name: "Body Combat", score: 3 },
+      { name: "练引体向上", score: 1 },
+      // +2分：中度活动与核心作息
+      { name: "俯卧撑", score: 1 },
+      { name: "Switch体感游戏", score: 2 },
+      { name: "1点前睡觉", score: 2 },
+      // +1分：生活管理与身心习惯
+      { name: "睡在床上", score: 1 },
+      { name: "弹琴", score: 1 },
+      { name: "练字", score: 1 },
+      { name: "搞卫生", score: 1 },
+      // -1 ~ -2分：失控与红线行为
+      { name: "睡在沙发上", score: -1 },
+      { name: "晚睡(超过1点)", score: -2 },
+      { name: "喝太多酒", score: -3 },
+      { name: "吃夜宵", score: -3 }
+    ];
+
+
+    const DEFAULT_BASELINE = `
+判断规则与权重参考：
+1. 【+3分】：高强度训练（Body Combat、练引体向上等）；
+2. 【+2分】：中度活动与核心作息（俯卧撑、Switch体感游戏、在凌晨1:00前睡觉等）；
+3. 【+1分】：日常身心管理（睡在床上、弹琴、练字、搞卫生等）；
+4. 【-1分】：轻度不良习惯（如 睡在沙发上）；
+5. 【-2分】：红线行为（晚睡超过1:00、喝太多酒、吃夜宵等）；
+6. 如果输入的行为不在上述范围内，请按照“正向+1~+3，负向-1~-3，普通/中性0分”的逻辑独立打分。`;
+
+    function getTodayStr() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    let recordsData = JSON.parse(localStorage.getItem("habit_records")) || {};
+    let configData = JSON.parse(localStorage.getItem("habit_ai_config")) || {
+      apiKey: "",
+      baseline: DEFAULT_BASELINE
+    };
+
+    function renderApp() {
+      renderPresets();
+      renderMonthCalendar();
+      renderTodayRecords();
+    }
+
+    function renderPresets() {
+      const container = document.getElementById("presets-container");
+      container.innerHTML = "";
+      DEFAULT_PRESETS.forEach(item => {
+        const btn = document.createElement("button");
+        btn.className = "preset-btn";
+        const badgeClass = item.score > 0 ? "badge-pos" : "badge-neg";
+        const sign = item.score > 0 ? "+" : "";
+        btn.innerHTML = `<span>${item.name}</span> <span class="score-badge ${badgeClass}">${sign}${item.score}</span>`;
+        btn.onclick = () => addRecord(item.name, item.score, "preset");
+        container.appendChild(btn);
+      });
+    }
+
+    function renderMonthCalendar() {
+      const grid = document.getElementById("heatmap");
+      grid.innerHTML = "";
+      
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const todayDate = now.getDate();
+
+      document.getElementById("month-title").innerText = `${month + 1}月`;
+
+      const firstDayOfWeek = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      for (let i = 0; i < firstDayOfWeek; i++) {
+        const emptyCell = document.createElement("div");
+        emptyCell.className = "cell empty";
+        grid.appendChild(emptyCell);
+      }
+
+      let posDaysCount = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        // 去掉了方块文字数字和黑框
+
+        const dayData = recordsData[dateStr];
+        const score = dayData ? dayData.total_score : 0;
+
+        if (score !== 0) {
+          if (score > 0) posDaysCount++;
+          cell.setAttribute("data-score", getScoreLevel(score));
+        }
+
+        grid.appendChild(cell);
+      }
+
+      document.getElementById("summary-text").innerText = `净胜 ${posDaysCount} 天`;
+    }
+
+    function getScoreLevel(score) {
+      if (score >= 3) return "pos3";
+      if (score === 2) return "pos2";
+      if (score === 1) return "pos1";
+      if (score === -1) return "neg1";
+      if (score === -2) return "neg2";
+      if (score <= -3) return "neg3";
+      return "";
+    }
+
+    function renderTodayRecords() {
+      const today = getTodayStr();
+      const todayData = recordsData[today] || { total_score: 0, records: [] };
+      
+      const scoreEl = document.getElementById("today-score");
+      const sign = todayData.total_score > 0 ? "+" : "";
+      scoreEl.innerText = `净分 ${sign}${todayData.total_score}`;
+      scoreEl.style.color = todayData.total_score >= 0 ? "#38a84d" : "#e05252";
+
+      const list = document.getElementById("records-list");
+      list.innerHTML = "";
+      
+      if (todayData.records.length === 0) {
+        list.innerHTML = `<div style="padding: 10px 0; color: var(--sub-text); font-size: 13px;">今天还未打卡</div>`;
+        return;
+      }
+
+      todayData.records.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "record-item";
+        const sign = item.score > 0 ? "+" : "";
+        row.innerHTML = `
+          <span>${item.name} <span style="color: var(--sub-text); font-size: 12px;">(${sign}${item.score})</span></span>
+          <button class="delete-btn" onclick="deleteRecord(${index})">撤销</button>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function addRecord(name, score, type) {
+      const today = getTodayStr();
+      if (!recordsData[today]) {
+        recordsData[today] = { total_score: 0, records: [] };
+      }
+      recordsData[today].records.push({ name, score: Number(score), type });
+      recordsData[today].total_score += Number(score);
+      
+      localStorage.setItem("habit_records", JSON.stringify(recordsData));
+      renderApp();
+    }
+
+    function deleteRecord(index) {
+      const today = getTodayStr();
+      if (!recordsData[today]) return;
+      
+      const removed = recordsData[today].records.splice(index, 1)[0];
+      recordsData[today].total_score -= Number(removed.score);
+      
+      localStorage.setItem("habit_records", JSON.stringify(recordsData));
+      renderApp();
+    }
+
+    async function submitToAI() {
+      const inputEl = document.getElementById("ai-input");
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      const btn = document.getElementById("ai-btn");
+      btn.disabled = true;
+      btn.innerText = "正在 AI 评分...";
+
+      try {
+        let aiResult = !configData.apiKey ? mockAIEvaluate(text) : await callZhipuAI(text, configData.baseline);
+        addRecord(`${text} (AI: ${aiResult.reason})`, aiResult.score, "ai_input");
+        inputEl.value = "";
+      } catch (e) {
+        alert("错误：" + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "让 AI 智能算分并打卡";
+      }
+    }
+
+    async function callZhipuAI(text, baseline) {
+      const prompt = `你是一个严肃的习惯评分助手。
+【用户基准设定】：${baseline}
+请根据行为判断对今天习惯的综合影响。必须只输出JSON：{"score": -3至3之间的数字, "reason": "10字以内最简短原因"}`;
+
+      const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${configData.apiKey}`
+        },
+        body: JSON.stringify({
+          model: "glm-4-flash",
+          messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: text }
+          ],
+          temperature: 0.1
+        })
+      });
+
+      if (!res.ok) throw new Error("API请求报错，请检查 Key");
+      const data = await res.json();
+      let content = data.choices[0].message.content.trim();
+      const match = content.match(/\{.*}/s);
+      if (match) content = match[0];
+      return JSON.parse(content);
+    }
+
+    function mockAIEvaluate(text) {
+      if (text.includes("睡") || text.includes("1点") || text.includes("一")) return { score: 1, reason: "模拟:符合休息基准" };
+      if (text.includes("吃") || text.includes("喝") || text.includes("奶") || text.includes("甜")) return { score: -2, reason: "模拟:额外糖分扣分" };
+      if (text.includes("走") || text.includes("动") || text.includes("练") || text.includes("跑")) return { score: 2, reason: "模拟:有氧运动加分" };
+      return { score: 1, reason: "模拟:默认正向" };
+    }
+
+    function toggleConfig() {
+      const panel = document.getElementById("config-panel");
+      panel.style.display = (panel.style.display === "block") ? "none" : "block";
+      document.getElementById("api-key-input").value = configData.apiKey || "";
+      document.getElementById("baseline-input").value = configData.baseline || DEFAULT_BASELINE;
+    }
+
+    function saveConfig() {
+      configData.apiKey = document.getElementById("api-key-input").value.trim();
+      configData.baseline = document.getElementById("baseline-input").value.trim() || DEFAULT_BASELINE;
+      localStorage.setItem("habit_ai_config", JSON.stringify(configData));
+      alert("AI 规则与 API Key 已更新");
+      toggleConfig();
+    }
+
+    renderApp();
+  </script>
+</body>
+</html>
