@@ -180,26 +180,27 @@
     const DEFAULT_PRESETS = [
       // +3分：核心强健与高能量运动
       { name: "Body Combat", score: 3 },
-      { name: "练引体向上", score: 3 },
       // +2分：中度活动与核心作息
-      { name: "俯卧撑", score: 2 },
       { name: "Switch体感游戏", score: 2 },
       { name: "1点前睡觉", score: 2 },
+      { name: "搞卫生", score: 2 },
       // +1分：生活管理与身心习惯
       { name: "睡在床上", score: 1 },
       { name: "弹琴", score: 1 },
       { name: "练字", score: 1 },
-      { name: "搞卫生", score: 1 },
+      { name: "练引体向上", score: 1 },
+      { name: "俯卧撑", score: 1 },
+
       // -1 ~ -2分：失控与红线行为
       { name: "睡在沙发上", score: -1 },
       { name: "晚睡(超过1点)", score: -2 },
       { name: "喝太多酒", score: -2 },
-      { name: "吃夜宵", score: -2 }
+      { name: "吃夜宵", score: -3 }
     ];
 
     const DEFAULT_BASELINE = `
 判断规则与权重参考：
-1. 【+3分】：高强度训练（Body Combat、练引体向上等）；
+1. 【+3分】：高强度训练（Body Combat等莱美系列课程）；
 2. 【+2分】：中度活动与核心作息（俯卧撑、Switch体感游戏、在凌晨1:00前睡觉等）；
 3. 【+1分】：日常身心管理（睡在床上、弹琴、练字、搞卫生等）；
 4. 【-1分】：轻度不良习惯（如 睡在沙发上）；
