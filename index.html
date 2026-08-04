@@ -36,8 +36,15 @@
       margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); border: 1px solid var(--border);
     }
     
-    /* 极简热力图样式 */
-    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    /* 1. 顶部热力卡片分栏布局 */
+    .top-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .top-layout {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .heatmap-col { flex: 0 0 auto; }
     .week-headers {
       display: grid; grid-template-columns: repeat(7, 22px); gap: 6px;
       font-size: 11px; color: var(--sub-text); margin-bottom: 6px; text-align: center;
@@ -59,9 +66,31 @@
     .cell[data-score="neg3"] { background: var(--neg-3); }
     
     .legend {
-      margin-top: 12px; font-size: 11px; color: var(--sub-text);
+      margin-top: 10px; font-size: 11px; color: var(--sub-text);
       display: flex; justify-content: space-between; align-items: center;
-      max-width: 190px;
+      width: 190px;
+    }
+
+    /* 右侧控制面板：选中日期 + 净分 */
+    .top-right-panel {
+      flex: 1; min-width: 0;
+      border-left: 1px dashed var(--border);
+      padding-left: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .top-right-panel label {
+      font-size: 11px; color: var(--sub-text); margin-bottom: 4px; display: block;
+    }
+    input[type="date"] {
+      width: 100%; padding: 7px 6px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 13px; font-weight: 600; outline: none; font-family: inherit; background: #fff;
+      margin-bottom: 12px;
+    }
+    input[type="date"]:focus { border-color: #38a84d; }
+    .score-display {
+      font-weight: 700; font-size: 20px; line-height: 1.2;
     }
 
     /* 预设打卡按钮 */
@@ -81,11 +110,11 @@
 
     /* AI 动态输入区 */
     .input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-    input[type="text"], input[type="date"], textarea {
+    input[type="text"], textarea {
       width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px;
-      font-size: 14px; outline: none; font-family: inherit; background: #fff;
+      font-size: 14px; outline: none; font-family: inherit;
     }
-    input[type="text"]:focus, input[type="date"]:focus, textarea:focus { border-color: #38a84d; }
+    input[type="text"]:focus, textarea:focus { border-color: #38a84d; }
     button.primary-btn {
       background: #1f2328; color: #fff; border: none; padding: 11px;
       border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500;
@@ -101,50 +130,73 @@
     .config-panel label { display: block; font-size: 12px; color: var(--sub-text); margin-bottom: 4px; margin-top: 8px; }
     .text-sm { font-size: 12px; color: var(--sub-text); cursor: pointer; }
 
-    /* 当天/选定日期打卡流水 */
-    .date-selector-row {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
-    }
+    /* 记录流水明细 & 改分 */
     .record-item {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px;
     }
     .record-item:last-child { border-bottom: none; }
-    .delete-btn { color: #e05252; background: none; border: none; font-size: 13px; padding: 4px 8px; }
+    
+    .record-actions {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .adjust-btn {
+      width: 26px; height: 26px; border: 1px solid var(--border); background: #f8f9fa;
+      border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; color: var(--text);
+    }
+    .adjust-btn:active { background: #e8eaed; }
+    .score-text {
+      min-width: 24px; text-align: center; font-weight: 600; font-size: 14px;
+    }
+    .delete-btn { color: #e05252; background: none; border: none; font-size: 13px; padding: 4px 6px; margin-left: 4px; }
   </style>
 </head>
 <body>
 
-  <!-- 1. 极简月度热力图 -->
-  <div class="calendar-header">
+  <!-- 1. 顶部：左边热力方块，右边打卡日期与净分 -->
+  <div class="card">
+    <div class="top-card-header">
       <div style="display: flex; align-items: center; gap: 8px;">
-        <h2 id="month-title">8月</h2>
+        <h2 id="month-title" style="margin-bottom: 0;">月</h2>
         <span onclick="window.location.reload(true)" style="font-size: 14px; color: var(--sub-text); cursor: pointer; padding: 2px 6px;">↻</span>
       </div>
       <span id="summary-text" style="font-size: 12px; color: var(--sub-text);"></span>
     </div>
-    <div class="week-headers">
-      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
-    </div>
-    <div class="month-grid" id="heatmap"></div>
-    <div class="legend">
-      <span>失控</span>
-      <span>·</span>
-      <span>留空</span>
-      <span>·</span>
-      <span>良好</span>
+
+    <div class="top-layout">
+      <!-- 左栏：日历热力图 -->
+      <div class="heatmap-col">
+        <div class="week-headers">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="month-grid" id="heatmap"></div>
+        <div class="legend">
+          <span>失控</span><span>·</span><span>留空</span><span>·</span><span>良好</span>
+        </div>
+      </div>
+
+      <!-- 右栏：选择日期与该日分数 -->
+      <div class="top-right-panel">
+        <label>选择打卡日期</label>
+        <input type="date" id="record-date" onchange="onDateChange()">
+        
+        <label>该日综合净分</label>
+        <div class="score-display" id="today-score">+0</div>
+      </div>
     </div>
   </div>
+
   <!-- 2. 常驻习惯快捷打卡 -->
   <div class="card">
-    <h2>高频打卡 (记入下方选定日期)</h2>
+    <h2>高频打卡 (自动记入上方选中日期)</h2>
     <div class="presets" id="presets-container"></div>
   </div>
 
   <!-- 3. AI 智能输入打卡 -->
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <h2>临时事项</h2>
+      <h2>临时事项 (AI 打分)</h2>
       <span class="text-sm" onclick="toggleConfig()">[AI 设置]</span>
     </div>
     
@@ -167,53 +219,43 @@
     </div>
   </div>
 
-  <!-- 4. 打卡明细 (支持日期切换/补卡) -->
+  <!-- 4. 选中日期流水 (支持 -/+ 微调与撤销) -->
   <div class="card">
-    <div class="date-selector-row">
-      <input type="date" id="record-date" style="width: 140px; padding: 6px 10px; font-weight: 600;" onchange="onDateChange()">
-      <span id="today-score" style="font-weight: 600; font-size: 14px;"></span>
-    </div>
+    <h2 id="today-title" style="margin-bottom: 8px;">当日流水明细</h2>
     <div id="records-list"></div>
   </div>
 
   <script>
     const DEFAULT_PRESETS = [
-      // +3分：核心强健与高能量运动
       { name: "Body Combat", score: 3 },
-      // +2分：中度活动与核心作息
+      { name: "练引体向上", score: 3 },
+      { name: "俯卧撑", score: 2 },
       { name: "Switch体感游戏", score: 2 },
       { name: "1点前睡觉", score: 2 },
-      { name: "搞卫生", score: 2 },
-      // +1分：生活管理与身心习惯
       { name: "睡在床上", score: 1 },
       { name: "弹琴", score: 1 },
       { name: "练字", score: 1 },
-      { name: "练引体向上", score: 1 },
-      { name: "俯卧撑", score: 1 },
-
-      // -1 ~ -2分：失控与红线行为
+      { name: "搞卫生", score: 1 },
       { name: "睡在沙发上", score: -1 },
       { name: "晚睡(超过1点)", score: -2 },
       { name: "喝太多酒", score: -2 },
-      { name: "吃夜宵", score: -3 }
+      { name: "吃夜宵", score: -2 }
     ];
 
     const DEFAULT_BASELINE = `
 判断规则与权重参考：
-1. 【+3分】：高强度训练（Body Combat等莱美系列课程）；
+1. 【+3分】：高强度训练（Body Combat、练引体向上等）；
 2. 【+2分】：中度活动与核心作息（俯卧撑、Switch体感游戏、在凌晨1:00前睡觉等）；
 3. 【+1分】：日常身心管理（睡在床上、弹琴、练字、搞卫生等）；
 4. 【-1分】：轻度不良习惯（如 睡在沙发上）；
 5. 【-2分】：红线行为（晚睡超过1:00、喝太多酒、吃夜宵等）；
 6. 如果输入的行为不在上述范围内，请按照“正向+1~+3，负向-1~-3，普通/中性0分”的逻辑独立打分。`;
 
-    // 获取格式化为 YYYY-MM-DD 的当天字符串
     function getTodayStr() {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     }
 
-    // 获取当前日历组件所选择的日期
     function getSelectedDateStr() {
       const dateInput = document.getElementById("record-date");
       return dateInput.value || getTodayStr();
@@ -226,7 +268,6 @@
     };
 
     function initApp() {
-      // 默认选中今天
       const dateInput = document.getElementById("record-date");
       if (!dateInput.value) {
         dateInput.value = getTodayStr();
@@ -303,34 +344,64 @@
       return "";
     }
 
-    // 渲染选定日期的流水
+    // 渲染选定日期的记录 & 分数控制按钮
     function renderRecordsForSelectedDate() {
       const targetDate = getSelectedDateStr();
       const dayData = recordsData[targetDate] || { total_score: 0, records: [] };
       
+      // 更新顶部的分数指示器
       const scoreEl = document.getElementById("today-score");
       const sign = dayData.total_score > 0 ? "+" : "";
-      scoreEl.innerText = `净分 ${sign}${dayData.total_score}`;
+      scoreEl.innerText = `${sign}${dayData.total_score}`;
       scoreEl.style.color = dayData.total_score >= 0 ? "#38a84d" : "#e05252";
+
+      // 更新下方流水明细标题
+      const dateParts = targetDate.split("-");
+      document.getElementById("today-title").innerText = `流水明细 (${Number(dateParts[1])}月${Number(dateParts[2])}日)`;
 
       const list = document.getElementById("records-list");
       list.innerHTML = "";
       
       if (dayData.records.length === 0) {
-        list.innerHTML = `<div style="padding: 10px 0; color: var(--sub-text); font-size: 13px;">这一天没有打卡记录</div>`;
+        list.innerHTML = `<div style="padding: 10px 0; color: var(--sub-text); font-size: 13px;">这一天暂无打卡记录</div>`;
         return;
       }
 
       dayData.records.forEach((item, index) => {
         const row = document.createElement("div");
         row.className = "record-item";
-        const sign = item.score > 0 ? "+" : "";
+        const itemSign = item.score > 0 ? "+" : "";
+        const color = item.score >= 0 ? "#1a5e28" : "#8e180d";
+
         row.innerHTML = `
-          <span>${item.name} <span style="color: var(--sub-text); font-size: 12px;">(${sign}${item.score})</span></span>
-          <button class="delete-btn" onclick="deleteRecord(${index})">撤销</button>
+          <span style="flex: 1; margin-right: 8px;">${item.name}</span>
+          <div class="record-actions">
+            <button class="adjust-btn" onclick="adjustScore(${index}, -1)">-</button>
+            <span class="score-text" style="color: ${color};">${itemSign}${item.score}</span>
+            <button class="adjust-btn" onclick="adjustScore(${index}, 1)">+</button>
+            <button class="delete-btn" onclick="deleteRecord(${index})">撤销</button>
+          </div>
         `;
         list.appendChild(row);
       });
+    }
+
+    // 快捷增减分 (-3 到 +3 范围限制)
+    function adjustScore(index, delta) {
+      const targetDate = getSelectedDateStr();
+      if (!recordsData[targetDate]) return;
+      
+      const rec = recordsData[targetDate].records[index];
+      const newScore = Math.max(-3, Math.min(3, rec.score + delta));
+      const diff = newScore - rec.score;
+      if (diff === 0) return;
+
+      rec.score = newScore;
+      recordsData[targetDate].total_score += diff;
+      
+      localStorage.setItem("habit_records", JSON.stringify(recordsData));
+      renderMonthCalendar();
+      renderRecordsForSelectedDate();
     }
 
     function addRecord(name, score, type) {
