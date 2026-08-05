@@ -36,7 +36,7 @@
       margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); border: 1px solid var(--border);
     }
     
-    /* 1. 顶部热力卡片分栏布局 */
+    /* 1. 主页面顶部卡片布局：左边单月热力，右边打卡面板 */
     .top-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .top-layout {
       display: flex;
@@ -150,22 +150,69 @@
       min-width: 24px; text-align: center; font-weight: 600; font-size: 14px;
     }
     .delete-btn { color: #e05252; background: none; border: none; font-size: 13px; padding: 4px 6px; margin-left: 4px; }
+
+    /* 全年热力图全屏视图 (改成一行排两月) */
+    .year-modal {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg); z-index: 1000;
+      padding: 16px 12px 40px;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      display: none; max-width: 480px; margin: 0 auto;
+    }
+    .year-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; position: sticky; top: 0;
+      background: var(--bg); padding: 8px 0; z-index: 10;
+    }
+    .close-btn {
+      background: #1f2328; color: #fff; border: none; padding: 7px 14px;
+      border-radius: 6px; font-size: 13px; cursor: pointer;
+    }
+    
+    /* 核心：全年容器用 Grid 一行两个卡片 */
+    #year-grid-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .year-month-box {
+      background: var(--card-bg); border-radius: 10px; padding: 10px 6px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .year-month-title {
+      font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--text);
+    }
+    /* 针对全年双月模式微调方块大小：16x16px */
+    .year-month-box .week-headers {
+      display: grid; grid-template-columns: repeat(7, 16px); gap: 3px;
+      font-size: 10px; color: var(--sub-text); margin-bottom: 4px; text-align: center;
+    }
+    .year-month-box .month-grid {
+      display: grid; grid-template-columns: repeat(7, 16px); gap: 3px;
+    }
+    .year-month-box .cell {
+      width: 16px; height: 16px; border-radius: 3px;
+    }
   </style>
 </head>
 <body>
 
-  <!-- 1. 顶部：左边热力方块，右边打卡日期与净分 -->
+  <!-- 1. 主页面顶部：左单月大热力，右侧选日期和积分 -->
   <div class="card">
     <div class="top-card-header">
       <div style="display: flex; align-items: center; gap: 8px;">
         <h2 id="month-title" style="margin-bottom: 0;">月</h2>
-        <span onclick="window.location.reload(true)" style="font-size: 14px; color: var(--sub-text); cursor: pointer; padding: 2px 6px;">↻</span>
+        <span onclick="window.location.reload(true)" style="font-size: 14px; color: var(--sub-text); cursor: pointer; padding: 2px 4px;">↻</span>
+        <span onclick="toggleYearView()" style="font-size: 12px; color: #38a84d; cursor: pointer; font-weight: 500;">[全年图]</span>
       </div>
       <span id="summary-text" style="font-size: 12px; color: var(--sub-text);"></span>
     </div>
 
     <div class="top-layout">
-      <!-- 左栏：日历热力图 -->
+      <!-- 左栏：单月大方块热力图 -->
       <div class="heatmap-col">
         <div class="week-headers">
           <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
@@ -176,7 +223,7 @@
         </div>
       </div>
 
-      <!-- 右栏：选择日期与该日分数 -->
+      <!-- 右栏：选择日期与综合积分 -->
       <div class="top-right-panel">
         <label>选择打卡日期</label>
         <input type="date" id="record-date" onchange="onDateChange()">
@@ -189,7 +236,7 @@
 
   <!-- 2. 常驻习惯快捷打卡 -->
   <div class="card">
-    <h2>高频打卡 (自动记入上方选中日期)</h2>
+    <h2>高频打卡 (自动记入选定日期)</h2>
     <div class="presets" id="presets-container"></div>
   </div>
 
@@ -223,6 +270,18 @@
   <div class="card">
     <h2 id="today-title" style="margin-bottom: 8px;">当日流水明细</h2>
     <div id="records-list"></div>
+  </div>
+
+  <!-- 5. 全年热力图全屏视图（横向双列布局） -->
+  <div id="year-modal" class="year-modal">
+    <div class="year-header">
+      <h2 id="year-title" style="margin-bottom: 0;">全年热力记录</h2>
+      <button class="close-btn" onclick="toggleYearView()">关闭 ×</button>
+    </div>
+    <div style="font-size: 12px; color: var(--sub-text); margin-bottom: 12px;">
+      提示：点击任意格，可直接回到打卡页修改当日数据。
+    </div>
+    <div id="year-grid-container"></div>
   </div>
 
   <script>
@@ -278,6 +337,7 @@
     }
 
     function onDateChange() {
+      renderMonthCalendar();
       renderRecordsForSelectedDate();
     }
 
@@ -299,11 +359,12 @@
       const grid = document.getElementById("heatmap");
       grid.innerHTML = "";
       
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
+      const targetDateStr = getSelectedDateStr();
+      const parts = targetDateStr.split("-");
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
 
-      document.getElementById("month-title").innerText = `${month + 1}月`;
+      document.getElementById("month-title").innerText = `${year}年${month + 1}月`;
 
       const firstDayOfWeek = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -344,18 +405,15 @@
       return "";
     }
 
-    // 渲染选定日期的记录 & 分数控制按钮
     function renderRecordsForSelectedDate() {
       const targetDate = getSelectedDateStr();
       const dayData = recordsData[targetDate] || { total_score: 0, records: [] };
       
-      // 更新顶部的分数指示器
       const scoreEl = document.getElementById("today-score");
       const sign = dayData.total_score > 0 ? "+" : "";
       scoreEl.innerText = `${sign}${dayData.total_score}`;
       scoreEl.style.color = dayData.total_score >= 0 ? "#38a84d" : "#e05252";
 
-      // 更新下方流水明细标题
       const dateParts = targetDate.split("-");
       document.getElementById("today-title").innerText = `流水明细 (${Number(dateParts[1])}月${Number(dateParts[2])}日)`;
 
@@ -386,7 +444,6 @@
       });
     }
 
-    // 快捷增减分 (-3 到 +3 范围限制)
     function adjustScore(index, delta) {
       const targetDate = getSelectedDateStr();
       if (!recordsData[targetDate]) return;
@@ -427,6 +484,75 @@
       localStorage.setItem("habit_records", JSON.stringify(recordsData));
       renderMonthCalendar();
       renderRecordsForSelectedDate();
+    }
+
+    // 切换全年概览弹窗
+    function toggleYearView() {
+      const modal = document.getElementById("year-modal");
+      const isShow = modal.style.display === "block";
+      if (!isShow) {
+        renderYearView();
+        modal.style.display = "block";
+      } else {
+        modal.style.display = "none";
+      }
+    }
+
+    // 渲染一行两列的全年热力图
+    function renderYearView() {
+      const targetDateStr = getSelectedDateStr();
+      const year = parseInt(targetDateStr.split("-")[0], 10);
+      document.getElementById("year-title").innerText = `${year}年 全年热力记录`;
+      
+      const container = document.getElementById("year-grid-container");
+      container.innerHTML = "";
+
+      for (let m = 0; m < 12; m++) {
+        const box = document.createElement("div");
+        box.className = "year-month-box";
+        box.innerHTML = `<div class="year-month-title">${m + 1}月</div>`;
+        
+        const weekHeaders = document.createElement("div");
+        weekHeaders.className = "week-headers";
+        weekHeaders.innerHTML = `<span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>`;
+        box.appendChild(weekHeaders);
+
+        const grid = document.createElement("div");
+        grid.className = "month-grid";
+
+        const firstDayOfWeek = new Date(year, m, 1).getDay();
+        const daysInMonth = new Date(year, m + 1, 0).getDate();
+
+        for (let i = 0; i < firstDayOfWeek; i++) {
+          const emptyCell = document.createElement("div");
+          emptyCell.className = "cell empty";
+          grid.appendChild(emptyCell);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateStr = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.style.cursor = "pointer";
+          
+          const dayData = recordsData[dateStr];
+          const score = dayData ? dayData.total_score : 0;
+          if (score !== 0) {
+            cell.setAttribute("data-score", getScoreLevel(score));
+          }
+
+          cell.onclick = () => {
+            document.getElementById("record-date").value = dateStr;
+            toggleYearView();
+            onDateChange();
+          };
+
+          grid.appendChild(cell);
+        }
+
+        box.appendChild(grid);
+        container.appendChild(box);
+      }
     }
 
     async function submitToAI() {
